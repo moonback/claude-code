@@ -1,257 +1,470 @@
-# Claude Code — Leaked Source (2026-03-31)
+# Claude Code — Analyse technique et documentation complète (FR)
 
-> **On March 31, 2026, the full source code of Anthropic's Claude Code CLI was leaked** via a `.map` file exposed in their npm registry.
-
----
-
-## How It Leaked
-
-[Chaofan Shou (@Fried_rice)](https://x.com/Fried_rice) discovered the leak and posted it publicly:
-
-> **"Claude code source code has been leaked via a map file in their npm registry!"**
->
-> — [@Fried_rice, March 31, 2026](https://x.com/Fried_rice/status/2038894956459290963)
-
-The source map file in the published npm package contained a reference to the full, unobfuscated TypeScript source, which was downloadable as a zip archive from Anthropic's R2 storage bucket.
+> **Contexte** : ce dépôt contient le dossier `src/` d’une version fuitée de Claude Code (CLI Anthropic), initialement exposée le **31 mars 2026** via un fichier source map dans un package npm.
 
 ---
 
-## Overview
+## 1) README traduit (FR)
 
-Claude Code is Anthropic's official CLI tool that lets you interact with Claude directly from the terminal to perform software engineering tasks — editing files, running commands, searching codebases, managing git workflows, and more.
+### Fuite et origine
+Le **31 mars 2026**, le code source de la CLI Claude Code a été rendu accessible à partir d’un fichier `.map` publié dans le registre npm. La map référencait un bundle TypeScript non obfusqué, récupérable depuis un bucket R2.
 
-This repository contains the leaked `src/` directory.
+### Vue rapide
+Claude Code est un assistant d’ingénierie logicielle en ligne de commande : il peut lire/éditer des fichiers, lancer des commandes shell, rechercher dans un codebase, gérer des workflows Git, et orchestrer des sous-agents.
 
-- **Leaked on**: 2026-03-31
-- **Language**: TypeScript
-- **Runtime**: Bun
-- **Terminal UI**: React + [Ink](https://github.com/vadimdemedes/ink) (React for CLI)
-- **Scale**: ~1,900 files, 512,000+ lines of code
+Ce dépôt regroupe le dossier `src/` exposé.
 
----
+- **Date de fuite** : 31/03/2026
+- **Langage** : TypeScript
+- **Runtime** : Bun
+- **UI terminal** : React + Ink
+- **Échelle observée** : ~1 900 fichiers, > 500 000 lignes
 
-## Directory Structure
+### Structure générale (traduite)
+- `main.tsx` : point d’entrée CLI
+- `commands.ts` : registre et routage des commandes
+- `tools.ts` : registre des outils
+- `Tool.ts` : types et contrats des outils
+- `QueryEngine.ts` : moteur d’interaction LLM
+- `services/` : intégrations externes (API, OAuth, MCP, LSP, etc.)
+- `bridge/` : pont IDE (VS Code / JetBrains)
+- `coordinator/` : orchestration multi-agents
+- `memdir/` : mémoire persistante
+- `plugins/` : extensibilité
 
-```
-src/
-├── main.tsx                 # Entrypoint (Commander.js-based CLI parser)
-├── commands.ts              # Command registry
-├── tools.ts                 # Tool registry
-├── Tool.ts                  # Tool type definitions
-├── QueryEngine.ts           # LLM query engine (core Anthropic API caller)
-├── context.ts               # System/user context collection
-├── cost-tracker.ts          # Token cost tracking
-│
-├── commands/                # Slash command implementations (~50)
-├── tools/                   # Agent tool implementations (~40)
-├── components/              # Ink UI components (~140)
-├── hooks/                   # React hooks
-├── services/                # External service integrations
-├── screens/                 # Full-screen UIs (Doctor, REPL, Resume)
-├── types/                   # TypeScript type definitions
-├── utils/                   # Utility functions
-│
-├── bridge/                  # IDE integration bridge (VS Code, JetBrains)
-├── coordinator/             # Multi-agent coordinator
-├── plugins/                 # Plugin system
-├── skills/                  # Skill system
-├── keybindings/             # Keybinding configuration
-├── vim/                     # Vim mode
-├── voice/                   # Voice input
-├── remote/                  # Remote sessions
-├── server/                  # Server mode
-├── memdir/                  # Memory directory (persistent memory)
-├── tasks/                   # Task management
-├── state/                   # State management
-├── migrations/              # Config migrations
-├── schemas/                 # Config schemas (Zod)
-├── entrypoints/             # Initialization logic
-├── ink/                     # Ink renderer wrapper
-├── buddy/                   # Companion sprite (Easter egg)
-├── native-ts/               # Native TypeScript utils
-├── outputStyles/            # Output styling
-├── query/                   # Query pipeline
-└── upstreamproxy/           # Proxy configuration
-```
+### Capacités cœur (traduction + reformulation)
+- **Système d’outils** : chaque tool définit son schéma d’entrée, ses permissions et son exécution.
+- **Système de commandes** : commandes slash (`/commit`, `/review`, `/doctor`, `/memory`, etc.).
+- **Couche services** : API Anthropic, MCP, OAuth, LSP, analytics, politiques d’organisation.
+- **Bridge IDE** : communication bidirectionnelle IDE ↔ CLI.
+- **Permissions** : validation systématique avant exécution d’un tool.
+- **Feature flags** : chargement conditionnel et élimination de code mort au build.
 
 ---
 
-## Core Architecture
+## 2) Vue d’ensemble du projet
 
-### 1. Tool System (`src/tools/`)
+### C’est quoi ?
+Un **copilote terminal “agentique”** : au-delà d’un chat, le système agit sur l’environnement de dev (fichiers, shell, réseau, git, sessions, agents).
 
-Every tool Claude Code can invoke is implemented as a self-contained module. Each tool defines its input schema, permission model, and execution logic.
+### À quoi ça sert ?
+- Automatiser des tâches d’ingénierie répétitives.
+- Accélérer l’exploration/refactor d’un dépôt volumineux.
+- Servir de couche d’assistance cross-outils (CLI + IDE + services externes).
 
-| Tool | Description |
-|---|---|
-| `BashTool` | Shell command execution |
-| `FileReadTool` | File reading (images, PDFs, notebooks) |
-| `FileWriteTool` | File creation / overwrite |
-| `FileEditTool` | Partial file modification (string replacement) |
-| `GlobTool` | File pattern matching search |
-| `GrepTool` | ripgrep-based content search |
-| `WebFetchTool` | Fetch URL content |
-| `WebSearchTool` | Web search |
-| `AgentTool` | Sub-agent spawning |
-| `SkillTool` | Skill execution |
-| `MCPTool` | MCP server tool invocation |
-| `LSPTool` | Language Server Protocol integration |
-| `NotebookEditTool` | Jupyter notebook editing |
-| `TaskCreateTool` / `TaskUpdateTool` | Task creation and management |
-| `SendMessageTool` | Inter-agent messaging |
-| `TeamCreateTool` / `TeamDeleteTool` | Team agent management |
-| `EnterPlanModeTool` / `ExitPlanModeTool` | Plan mode toggle |
-| `EnterWorktreeTool` / `ExitWorktreeTool` | Git worktree isolation |
-| `ToolSearchTool` | Deferred tool discovery |
-| `CronCreateTool` | Scheduled trigger creation |
-| `RemoteTriggerTool` | Remote trigger |
-| `SleepTool` | Proactive mode wait |
-| `SyntheticOutputTool` | Structured output generation |
+### Pour qui ?
+- **Développeurs** : productivité quotidienne.
+- **Tech leads / Staff engineers** : coordination de tâches complexes via sous-agents.
+- **Platform / DevEx** : outillage standardisé et pilotable.
+- **Équipes produit** : prototypage rapide piloté par prompts + commandes.
 
-### 2. Command System (`src/commands/`)
+### Cas d’usage concrets
+- Génération d’un plan de migration multi-fichiers, puis exécution contrôlée.
+- Analyse de bugs via grep/lsp + exécution de tests + patchs guidés.
+- Préparation de commits/reviews avec contexte projet.
+- Exécution d’agents spécialisés (frontend, backend, sécurité) dans une équipe d’agents.
 
-User-facing slash commands invoked with `/` prefix.
+---
 
-| Command | Description |
-|---|---|
-| `/commit` | Create a git commit |
-| `/review` | Code review |
-| `/compact` | Context compression |
-| `/mcp` | MCP server management |
-| `/config` | Settings management |
-| `/doctor` | Environment diagnostics |
-| `/login` / `/logout` | Authentication |
-| `/memory` | Persistent memory management |
-| `/skills` | Skill management |
-| `/tasks` | Task management |
-| `/vim` | Vim mode toggle |
-| `/diff` | View changes |
-| `/cost` | Check usage cost |
-| `/theme` | Change theme |
-| `/context` | Context visualization |
-| `/pr_comments` | View PR comments |
-| `/resume` | Restore previous session |
-| `/share` | Share session |
-| `/desktop` | Desktop app handoff |
-| `/mobile` | Mobile app handoff |
+## 3) Architecture détaillée
 
-### 3. Service Layer (`src/services/`)
-
-| Service | Description |
-|---|---|
-| `api/` | Anthropic API client, file API, bootstrap |
-| `mcp/` | Model Context Protocol server connection and management |
-| `oauth/` | OAuth 2.0 authentication flow |
-| `lsp/` | Language Server Protocol manager |
-| `analytics/` | GrowthBook-based feature flags and analytics |
-| `plugins/` | Plugin loader |
-| `compact/` | Conversation context compression |
-| `policyLimits/` | Organization policy limits |
-| `remoteManagedSettings/` | Remote managed settings |
-| `extractMemories/` | Automatic memory extraction |
-| `tokenEstimation.ts` | Token count estimation |
-| `teamMemorySync/` | Team memory synchronization |
-
-### 4. Bridge System (`src/bridge/`)
-
-A bidirectional communication layer connecting IDE extensions (VS Code, JetBrains) with the Claude Code CLI.
-
-- `bridgeMain.ts` — Bridge main loop
-- `bridgeMessaging.ts` — Message protocol
-- `bridgePermissionCallbacks.ts` — Permission callbacks
-- `replBridge.ts` — REPL session bridge
-- `jwtUtils.ts` — JWT-based authentication
-- `sessionRunner.ts` — Session execution management
-
-### 5. Permission System (`src/hooks/toolPermission/`)
-
-Checks permissions on every tool invocation. Either prompts the user for approval/denial or automatically resolves based on the configured permission mode (`default`, `plan`, `bypassPermissions`, `auto`, etc.).
-
-### 6. Feature Flags
-
-Dead code elimination via Bun's `bun:bundle` feature flags:
-
-```typescript
-import { feature } from 'bun:bundle'
-
-// Inactive code is completely stripped at build time
-const voiceCommand = feature('VOICE_MODE')
-  ? require('./commands/voice/index.js').default
-  : null
+### Vue macro (mental model)
+```text
+Utilisateur/IDE
+   │
+   ▼
+CLI (main.tsx + commands.ts)
+   │
+   ▼
+QueryEngine (raisonnement + boucle tool-calls)
+   │
+   ├── Tool Runtime (tools.ts / Tool.ts / tools/*)
+   │       ├── FS / Shell / Web / Git / Tasks / Agents
+   │       └── Permission Gate
+   │
+   ├── Coordinator (multi-agent)
+   │       └── Team agents + messagerie
+   │
+   ├── Memory (memdir + extraction/sync)
+   │
+   ├── Plugins
+   │
+   ├── Bridge IDE (bridge/*)
+   │
+   └── Services (api, mcp, oauth, lsp, analytics...)
 ```
 
-Notable flags: `PROACTIVE`, `KAIROS`, `BRIDGE_MODE`, `DAEMON`, `VOICE_MODE`, `AGENT_TRIGGERS`, `MONITOR_TOOL`
+### Core engine (LLM / QueryEngine)
+- Coordonne les appels modèle (streaming, retries, boucle d’actions).
+- Décide quand appeler un tool selon le plan de résolution.
+- Suit les coûts/tokens et gère la continuité conversationnelle.
+
+### Tool system
+- `Tool.ts` définit le contrat commun (input schema, permissions, résultat).
+- `tools.ts` enregistre/rend disponibles les implémentations.
+- `tools/*` exécute la logique réelle (fichiers, shell, web, agents, etc.).
+
+### Command system
+- `main.tsx` parse les arguments CLI et initialise le runtime.
+- `commands.ts` route les commandes slash et choisit les handlers.
+- `commands/*` contient la logique métier de chaque commande.
+
+### Multi-agent system
+- `coordinator/` orchestre des sous-agents spécialisés.
+- Gestion de **teams** d’agents, messages inter-agents, délégation de tâches.
+- Permet une parallélisation logique de sous-problèmes.
+
+### Memory system
+- `memdir/` conserve des mémoires persistantes localement.
+- Services associés : extraction auto de mémoires, synchro mémoire d’équipe.
+- Objectif : continuité de contexte à long terme.
+
+### Plugin system
+- `plugins/` apporte une extension du comportement sans modifier le cœur.
+- Utile pour intégrer des workflows entreprise/custom.
+
+### Bridge system
+- `bridge/` connecte CLI et IDE en bidirectionnel.
+- Cas : pilotage de session depuis extension, callbacks de permission, auth de session.
+
+### Services layer
+- `services/api` : communication backend/LLM.
+- `services/mcp` : serveurs MCP et outils distants.
+- `services/lsp` : introspection sémantique du code.
+- `services/oauth`, `analytics`, `policyLimits`, etc. : couche transverse.
+
+### Data flow (simplifié)
+1. Entrée utilisateur (CLI ou IDE).
+2. Enrichissement contexte (fichiers, session, mémoire).
+3. QueryEngine génère une action.
+4. Appel tool(s) si nécessaire (après permissions).
+5. Résultats tool injectés dans le contexte.
+6. Réponse finale ou itération jusqu’à terminaison.
+
+### Execution flow (simplifié)
+```text
+Input -> Parse command -> Build context -> LLM decide -> Tool call?
+      -> Permission check -> Execute tool -> Observe result
+      -> Continue loop -> Final output -> Optional persist memory
+```
 
 ---
 
-## Key Files in Detail
+## 4) Explication des composants clés
 
-### `QueryEngine.ts` (~46K lines)
+### `QueryEngine`
+- **Rôle** : cerveau opérationnel de la session.
+- **Fonctionnement** : boucle pensée/action, streaming, retries, suivi tokens.
+- **Importance** : détermine robustesse, qualité des décisions, coût et latence.
 
-The core engine for LLM API calls. Handles streaming responses, tool-call loops, thinking mode, retry logic, and token counting.
+### `Tool.ts`
+- **Rôle** : contrat standard de tous les outils.
+- **Fonctionnement** : types d’entrée/sortie, permissions, états de progression.
+- **Importance** : garantit cohérence, sécurité et composabilité des tools.
 
-### `Tool.ts` (~29K lines)
-
-Defines base types and interfaces for all tools — input schemas, permission models, and progress state types.
-
-### `commands.ts` (~25K lines)
-
-Manages registration and execution of all slash commands. Uses conditional imports to load different command sets per environment.
+### `commands.ts`
+- **Rôle** : catalogue + routage des commandes slash.
+- **Fonctionnement** : enregistrement conditionnel selon environnement/flags.
+- **Importance** : surface UX principale de la CLI.
 
 ### `main.tsx`
+- **Rôle** : bootstrap global.
+- **Fonctionnement** : parse CLI, initialise runtime, renderer Ink/React, préfetch parallèle.
+- **Importance** : impact direct sur performance de démarrage et stabilité.
 
-Commander.js-based CLI parser + React/Ink renderer initialization. At startup, parallelizes MDM settings, keychain prefetch, and GrowthBook initialization for faster boot.
+### `services/*`
+- **Rôle** : isoler les intégrations externes.
+- **Fonctionnement** : API, auth, protocoles, analytics, limites de policy.
+- **Importance** : séparation des responsabilités + testabilité + maintenabilité.
 
----
+### `tools/*`
+- **Rôle** : exécution concrète d’actions dans le monde réel.
+- **Fonctionnement** : implémentations indépendantes sous contrat commun.
+- **Importance** : transforme le LLM en agent exécutable, pas seulement conversationnel.
 
-## Tech Stack
-
-| Category | Technology |
-|---|---|
-| Runtime | [Bun](https://bun.sh) |
-| Language | TypeScript (strict) |
-| Terminal UI | [React](https://react.dev) + [Ink](https://github.com/vadimdemedes/ink) |
-| CLI Parsing | [Commander.js](https://github.com/tj/commander.js) (extra-typings) |
-| Schema Validation | [Zod v4](https://zod.dev) |
-| Code Search | [ripgrep](https://github.com/BurntSushi/ripgrep) (via GrepTool) |
-| Protocols | [MCP SDK](https://modelcontextprotocol.io), LSP |
-| API | [Anthropic SDK](https://docs.anthropic.com) |
-| Telemetry | OpenTelemetry + gRPC |
-| Feature Flags | GrowthBook |
-| Auth | OAuth 2.0, JWT, macOS Keychain |
+### `coordinator/*`
+- **Rôle** : orchestrer plusieurs agents.
+- **Fonctionnement** : dispatch des tâches, suivi d’état, messages, fusion des sorties.
+- **Importance** : scaler la résolution de problèmes complexes.
 
 ---
 
-## Notable Design Patterns
+## 5) Système d’agents (très important)
 
-### Parallel Prefetch
+### Comment fonctionnent les agents
+- Un agent principal reçoit l’objectif global.
+- Il délègue des sous-objectifs à des sub-agents (via `AgentTool` / team tools).
+- Chaque sub-agent opère avec son contexte, puis renvoie ses résultats.
 
-Startup time is optimized by prefetching MDM settings, keychain reads, and API preconnect in parallel — before heavy module evaluation begins.
+### Sub-agents
+- Spécialisables par rôle (ex. “refactor”, “tests”, “documentation”).
+- Peuvent être temporaires (one-shot) ou persister selon le flux.
 
-```typescript
-// main.tsx — fired as side-effects before other imports
-startMdmRawRead()
-startKeychainPrefetch()
+### Coordination
+- Le coordinator agit comme **scheduler + arbitre**.
+- Il évite les collisions de tâches et garde une vue d’ensemble.
+
+### Team agents
+- Des équipes d’agents peuvent être créées/supprimées dynamiquement.
+- Utiles pour paralléliser des streams de travail (analyse, implémentation, validation).
+
+### Cas d’usage
+- **Automation pipeline** : analyser backlog → proposer plan → exécuter patchs.
+- **Copilote autonome** : traiter une issue complète avec checkpoints humains.
+- **Ops de codebase massive** : exploration/recherche/triage distribués.
+
+---
+
+## 6) Système de tools
+
+### Comment un tool fonctionne
+1. Déclaration du schéma d’entrée (validation stricte).
+2. Définition des permissions requises.
+3. Exécution de la logique.
+4. Retour d’un résultat structuré + logs/progress.
+
+### Lifecycle d’un tool
+```text
+Register -> Validate input -> Permission gate -> Execute -> Return -> Trace
 ```
 
-### Lazy Loading
+### Permissions
+- Contrôle systématique avant action sensible.
+- Modes observables : interactif, planifié, auto/bypass (selon policy/config).
+- Peut demander approbation utilisateur ou appliquer des règles automatiques.
 
-Heavy modules (OpenTelemetry ~400KB, gRPC ~700KB) are deferred via dynamic `import()` until actually needed.
-
-### Agent Swarms
-
-Sub-agents are spawned via `AgentTool`, with `coordinator/` handling multi-agent orchestration. `TeamCreateTool` enables team-level parallel work.
-
-### Skill System
-
-Reusable workflows defined in `skills/` and executed through `SkillTool`. Users can add custom skills.
-
-### Plugin Architecture
-
-Built-in and third-party plugins are loaded through the `plugins/` subsystem.
+### Exemples concrets
+- **FileRead** : lecture de code, images, PDF, notebooks.
+- **Bash** : exécution shell encadrée.
+- **WebSearch/WebFetch** : recherche et récupération web.
+- **FileEdit/FileWrite** : mutation locale de fichiers.
+- **MCP/LSP** : accès outils distants et intelligence sémantique.
 
 ---
 
-## Disclaimer
+## 7) Commandes CLI importantes
 
-This repository archives source code that was leaked from Anthropic's npm registry on **2026-03-31**. All original source code is the property of [Anthropic](https://www.anthropic.com).
+### Commandes à fort impact
+- `/commit` : prépare et crée un commit.
+- `/review` : revue de changements.
+- `/doctor` : diagnostic environnement.
+- `/memory` : consultation/gestion mémoire persistante.
+- `/skills` : gestion des compétences/outils spécialisés.
+- `/tasks` : suivi de tâches.
+- `/config` : réglages runtime.
+- `/diff` : inspection des modifications.
+- `/resume` : reprise de session.
+
+### Exemples d’usage réel
+- **Avant session** : `/doctor` puis `/config` pour sécuriser le contexte.
+- **Pendant implémentation** : `/tasks` + `/diff` + `/review`.
+- **Finalisation** : `/commit` puis partage/synchronisation.
+
+---
+
+## 8) Stack technique expliquée
+
+- **Bun** : runtime rapide, bundling moderne, startup faible latence.
+- **TypeScript strict** : sécurité de typage sur une base très large.
+- **React + Ink** : paradigme UI composant, appliqué au terminal.
+- **Commander.js** : parsing CLI robuste.
+- **Zod** : validation runtime fiable des schémas tools/commandes.
+- **ripgrep** : recherche code ultra-performante.
+- **MCP + LSP** : extension protocolée + compréhension sémantique.
+- **OpenTelemetry + gRPC** : observabilité et transport standardisés.
+- **GrowthBook** : feature flags pour livraisons progressives.
+
+---
+
+## 9) Patterns d’architecture
+
+### Lazy loading
+- Chargement différé de modules coûteux pour réduire TTI en CLI.
+
+### Parallel prefetch
+- Pré-initialisation parallèle (settings, keychain, flags) au démarrage.
+
+### Feature flags
+- Activation ciblée de capacités (et élimination de code mort au build).
+
+### Agent orchestration
+- Décomposition d’un problème en tâches parallélisables + agrégation.
+
+### Diagramme de décision (simplifié)
+```text
+Need capability?
+ ├─ stable core path -> direct tool
+ ├─ optional/expensive -> lazy load
+ ├─ experiment rollout -> feature flag
+ └─ complex task -> multi-agent orchestration
+```
+
+---
+
+## 10) Sécurité & risques
+
+### Implications d’une fuite de source
+- Exposition d’implémentations internes (surfaces d’attaque mieux connues).
+- Risque de rétro-ingénierie des flux, permissions, endpoints et comportements.
+- Accélération d’imitations concurrentes (copie de patterns/UX).
+
+### Risques potentiels
+- Mauvaise configuration des permissions tools (exécution non maîtrisée).
+- Utilisation agressive du shell/web sans sandbox/policies fortes.
+- Fuites de secrets dans logs, mémoires persistantes ou plugins tiers.
+
+### Bonnes pratiques si réutilisation
+- Mettre une **politique de permissions deny-by-default**.
+- Isoler l’exécution shell (sandbox, allowlists, quotas).
+- Chiffrer/segmenter mémoire persistante.
+- Activer audit logs + traçabilité tool-level.
+- Faire revue sécurité des plugins avant activation.
+
+---
+
+## 11) Opportunités produit (angle startup)
+
+### Transformer en SaaS
+- **Positionnement** : “Agent Engineering Platform” pour équipes software.
+- **Modèle** : seat-based + usage-based (tools, tokens, automations).
+
+### Idées de features monétisables
+- Workspaces multi-projets avec governance centralisée.
+- Templates d’agents métier (SRE, SecOps, QA, Migration).
+- “Approval center” (workflow conformité + RBAC avancé).
+- Observabilité business (temps gagné, MTTR, qualité PR).
+
+### Différenciation possible
+- Plus orienté “ops de codebase” que copilote inline type Copilot.
+- Plus orchestrateur terminal/agents que simple éditeur assisté type Cursor.
+- Avantage clé : combinaison **CLI + IDE + mémoire + équipes d’agents**.
+
+### Trajectoire MVP → Scale
+1. **MVP** : assistant terminal + 6 tools cœur + mémoire locale.
+2. **V1 équipe** : RBAC, audit, templates agents, dashboards.
+3. **Scale** : multi-tenant, marketplace plugins, politiques org avancées.
+4. **Enterprise** : SOC2, SSO/SCIM, data residency, policy engine complet.
+
+---
+
+## 12) Résumé exécutif (TL;DR)
+
+1. Claude Code est un copilote terminal orienté action (pas seulement chat).
+2. Son moteur central est une boucle LLM + outils.
+3. Les tools sont typés, validés, et gouvernés par permissions.
+4. Les commandes slash structurent l’expérience utilisateur.
+5. La couche services encapsule API/protocoles/auth/analytics.
+6. Le bridge IDE relie les usages terminal et éditeur.
+7. Le système multi-agents permet la délégation et la parallélisation.
+8. La mémoire persistante améliore la continuité inter-sessions.
+9. Les feature flags facilitent rollout progressif et expérimentation.
+10. Le potentiel produit est fort pour une plateforme SaaS DevEx/AgentOps.
+
+---
+
+## Annexes (bonus)
+
+### Comparaison mentale rapide
+- **Copilot** : fort dans l’assistance inline éditeur.
+- **Cursor** : expérience IDE augmentée orientée agent.
+- **Ce design CLI-agent** : plus proche d’un **orchestrateur programmable** qui opère sur tout l’environnement de développement.
+
+### Modèle mental utile
+Pensez le système comme un **“OS d’agents pour ingénierie logicielle”** :
+- le LLM = planificateur cognitif,
+- les tools = appels système,
+- les permissions = sécurité kernel,
+- le coordinator = scheduler distribué,
+- la mémoire = disque contextuel.
+
+
+---
+
+## 13) Installation, exécution et réutilisation du code
+
+> ⚠️ **Important** : ce dépôt est une base de code fuitée. Son exécution peut être incomplète selon les dépendances internes non publiées.
+
+### Prérequis
+- **OS** : macOS / Linux recommandé
+- **Runtime** : Bun (version récente)
+- **Node.js** : utile pour certains outils de l’écosystème
+- **Git** : pour cloner et gérer les modifications
+
+### Installation (mode exploration)
+```bash
+git clone <votre-fork-ou-copie>
+cd claude-code
+bun install
+```
+
+### Exécution locale (selon entrypoints disponibles)
+Comme le dépôt contient surtout `src/`, le point d’entrée réel dépend de la structure de build présente dans votre copie.
+
+Essais usuels :
+```bash
+# Vérifier les scripts disponibles
+cat package.json
+
+# Exécuter le mode dev si disponible
+bun run dev
+
+# Exécuter la CLI si un script existe
+bun run start
+# ou
+bun run cli
+```
+
+Si aucun script n’est défini :
+```bash
+# Vérification TypeScript (si tsconfig présent)
+bunx tsc --noEmit
+
+# Exécution directe d’un entrypoint potentiel
+bun run src/main.tsx
+```
+
+### Vérifications minimales recommandées
+```bash
+# Lint / typecheck / tests (si disponibles)
+bun run lint
+bun run typecheck
+bun test
+```
+
+### Réutiliser le code dans un autre projet (approche pragmatique)
+
+#### Option A — Réutilisation du pattern d’architecture
+- Reprendre les concepts plutôt que copier tel quel :
+  - `QueryEngine` (boucle LLM + tools)
+  - `Tool.ts` (contrat unique des outils)
+  - `coordinator/` (orchestration multi-agents)
+  - `services/` (intégrations isolées)
+- Avantage : faible dette légale/technique, adaptation plus rapide.
+
+#### Option B — Extraction modulaire contrôlée
+- Extraire d’abord les modules peu couplés (ex. utilitaires, schémas, patterns tools).
+- Encapsuler chaque module derrière des interfaces stables.
+- Ajouter tests de non-régression avant intégration.
+
+#### Option C — “Clean-room reimplementation” (recommandé en contexte produit)
+- Spécifier les comportements attendus.
+- Réimplémenter depuis zéro avec vos propres conventions.
+- Conserver seulement les idées architecturales, pas le code brut.
+
+### Plan de réutilisation en 5 étapes
+1. **Cartographier** les dépendances (`services`, `tools`, `query`).
+2. **Prioriser** 3 capacités cœur (lecture fichier, bash, recherche).
+3. **Isoler** un contrat de tool unifié + permission gate.
+4. **Implémenter** un QueryEngine minimal avec boucle tool-call.
+5. **Durcir** sécurité (sandbox, audit logs, RBAC, quotas).
+
+### Risques à anticiper en réutilisation
+- Couplage fort à des APIs internes ou endpoints non accessibles.
+- Manques de configuration (secrets, policies, feature flags internes).
+- Ambiguïtés légales/licence selon provenance du code.
+
+### Recommandations opérationnelles
+- Commencer par un **prototype local non connecté** aux systèmes sensibles.
+- Remplacer les dépendances externes par des abstractions mockées.
+- Mettre en place observabilité et permissioning dès le premier sprint.
+- Faire une revue sécurité et légale avant toute mise en production.
