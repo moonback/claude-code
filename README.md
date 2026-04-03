@@ -376,3 +376,95 @@ Pensez le système comme un **“OS d’agents pour ingénierie logicielle”** 
 - les permissions = sécurité kernel,
 - le coordinator = scheduler distribué,
 - la mémoire = disque contextuel.
+
+
+---
+
+## 13) Installation, exécution et réutilisation du code
+
+> ⚠️ **Important** : ce dépôt est une base de code fuitée. Son exécution peut être incomplète selon les dépendances internes non publiées.
+
+### Prérequis
+- **OS** : macOS / Linux recommandé
+- **Runtime** : Bun (version récente)
+- **Node.js** : utile pour certains outils de l’écosystème
+- **Git** : pour cloner et gérer les modifications
+
+### Installation (mode exploration)
+```bash
+git clone <votre-fork-ou-copie>
+cd claude-code
+bun install
+```
+
+### Exécution locale (selon entrypoints disponibles)
+Comme le dépôt contient surtout `src/`, le point d’entrée réel dépend de la structure de build présente dans votre copie.
+
+Essais usuels :
+```bash
+# Vérifier les scripts disponibles
+cat package.json
+
+# Exécuter le mode dev si disponible
+bun run dev
+
+# Exécuter la CLI si un script existe
+bun run start
+# ou
+bun run cli
+```
+
+Si aucun script n’est défini :
+```bash
+# Vérification TypeScript (si tsconfig présent)
+bunx tsc --noEmit
+
+# Exécution directe d’un entrypoint potentiel
+bun run src/main.tsx
+```
+
+### Vérifications minimales recommandées
+```bash
+# Lint / typecheck / tests (si disponibles)
+bun run lint
+bun run typecheck
+bun test
+```
+
+### Réutiliser le code dans un autre projet (approche pragmatique)
+
+#### Option A — Réutilisation du pattern d’architecture
+- Reprendre les concepts plutôt que copier tel quel :
+  - `QueryEngine` (boucle LLM + tools)
+  - `Tool.ts` (contrat unique des outils)
+  - `coordinator/` (orchestration multi-agents)
+  - `services/` (intégrations isolées)
+- Avantage : faible dette légale/technique, adaptation plus rapide.
+
+#### Option B — Extraction modulaire contrôlée
+- Extraire d’abord les modules peu couplés (ex. utilitaires, schémas, patterns tools).
+- Encapsuler chaque module derrière des interfaces stables.
+- Ajouter tests de non-régression avant intégration.
+
+#### Option C — “Clean-room reimplementation” (recommandé en contexte produit)
+- Spécifier les comportements attendus.
+- Réimplémenter depuis zéro avec vos propres conventions.
+- Conserver seulement les idées architecturales, pas le code brut.
+
+### Plan de réutilisation en 5 étapes
+1. **Cartographier** les dépendances (`services`, `tools`, `query`).
+2. **Prioriser** 3 capacités cœur (lecture fichier, bash, recherche).
+3. **Isoler** un contrat de tool unifié + permission gate.
+4. **Implémenter** un QueryEngine minimal avec boucle tool-call.
+5. **Durcir** sécurité (sandbox, audit logs, RBAC, quotas).
+
+### Risques à anticiper en réutilisation
+- Couplage fort à des APIs internes ou endpoints non accessibles.
+- Manques de configuration (secrets, policies, feature flags internes).
+- Ambiguïtés légales/licence selon provenance du code.
+
+### Recommandations opérationnelles
+- Commencer par un **prototype local non connecté** aux systèmes sensibles.
+- Remplacer les dépendances externes par des abstractions mockées.
+- Mettre en place observabilité et permissioning dès le premier sprint.
+- Faire une revue sécurité et légale avant toute mise en production.
